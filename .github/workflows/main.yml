@@ -1,0 +1,41 @@
+name: 🔄 自动更新 DNS 规则（china + gfwlist）
+
+on:
+  schedule:
+    - cron: '0 3 * * *'    # 每天凌晨3点自动执行
+  workflow_dispatch:        # 支持手动触发
+
+jobs:
+  one:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: ✅ 签出代码仓库
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0      # 拉取完整提交历史，保证git diff正常运行
+
+      - name: 📥 下载 china.conf
+        run: |
+          curl -sSfL -o china.conf https://github.com/felixonmars/dnsmasq-china-list/raw/master/accelerated-domains.china.conf
+
+      - name: 📥 下载并格式化 gfwlist.conf.
+        run: |
+          curl -sSfL -o gfw_raw.txt https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/gfw.txt
+          awk '{print "nameserver /"$0"/foreign"}' gfw_raw.txt > gfwlist.conf
+          rm -f gfw_raw.txt
+
+      - name: 💾 检查规则是否变更并提交
+        run: |
+          git config user.name github-actions
+          git config user.email github-actions@github.com
+
+          git add china.conf gfwlist.conf
+
+          if git diff-index --quiet HEAD --; then
+            echo "⚠️ 规则未变更，无需提交"
+          else
+            git commit -m "🔄 自动更新规则 $(date +'%Y-%m-%d %H:%M:%S')"
+            git push
+            echo "✅ 规则已更新并提交"
+          fi
